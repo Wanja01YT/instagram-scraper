@@ -1,1 +1,34 @@
-# instagram-scraper
+# Instagram Comment Scraper
+A Chrome extension to scrape Instagram comments for giveaways and events, saving them as a downloadable XLSX spreadsheet.    
+</p>
+
+[![Static Badge](https://img.shields.io/badge/chromium-1.0-blue?logo=GoogleChrome)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.0/insta-scraper-1.0-chromium.zip)
+![Static Badge](https://img.shields.io/badge/license-MIT-lightgrey)
+
+## Usage and Limits
+- **Installation**
+
+   * Go to `chrome://extensions`
+   * Enable **Developer Mode**
+   * Click **"Load unpacked"** and select the extension folder
+
+- **Using the Extension**
+
+   * Open any Instagram post in the non-modal view (not from an account page) (e.g. `instagram.com/p/...`)
+   * Click the extension icon
+   * Hit **"Scrape"** — the extension will begin collecting all first-level comments
+   * Once done, a clean, organized `.xlsx` spreadsheet will automatically be generated and offered for download
+
+- **Use Cases**
+  * This tool is especially useful for scenarios like **giveaways**, where collecting usernames and user IDs from large comment sections is required.
+
+- **Performance Notes**
+  * The script has been tested on posts and videos with **up to \~3,000 comments**
+  * On heavier comment loads, you may experience some **lag or browser tab slowdowns**
+  * In rare cases (especially on lower-end devices), the tab may become unresponsive or crash — simply retry or reduce load
+  
+## Downloads
+- [Chromium (1.0)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.0/insta-scraper-1.0-chromium.zip) <br> _Supported by any Chromium-based browser, such as Chrome, Edge, Opera_
+
+## Credits
+#### [SheetJS](https://git.sheetjs.com/sheetjs/sheetjs)
