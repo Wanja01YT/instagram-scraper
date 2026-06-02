@@ -28,7 +28,7 @@ A Chrome extension to scrape Instagram comments for giveaways and events, saving
   * In rare cases (especially on lower-end devices), the tab may become unresponsive or crash — simply retry or reduce load
   
 ## Downloads
-- [Chromium (1.0)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.0/insta-scraper-1.0-chromium.zip) <br> _Supported by any Chromium-based browser, such as Chrome, Edge, Opera_
+- [Chromium (1.1.2)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.1.2/insta-scraper-1.1.2-chromium.zip) <br> _Supported by any Chromium-based browser, such as Chrome, Edge, Opera_
 
 ## Credits
 #### [SheetJS](https://git.sheetjs.com/sheetjs/sheetjs)
