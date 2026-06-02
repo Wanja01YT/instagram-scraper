@@ -2,7 +2,7 @@
 A Chrome extension to scrape Instagram comments for giveaways and events, saving them as a downloadable XLSX spreadsheet.    
 </p>
 
-[![Static Badge](https://img.shields.io/badge/chromium-1.0-blue?logo=GoogleChrome)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.0/insta-scraper-1.0-chromium.zip)
+[![Static Badge](https://img.shields.io/badge/chromium-1.1.2-blue?logo=GoogleChrome)](https://github.com/Wanja01YT/instagram-scraper/releases/download/1.1.2/insta-scraper-1.1.2-chromium.zip)
 ![Static Badge](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Usage and Limits
