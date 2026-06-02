@@ -1,17 +1,28 @@
 {
   "manifest_version": 3,
   "name": "Instagram Comment Scraper",
-  "version": "1.0",
+  "version": "1.1.2",
   "description": "Scrape Instagram comments as XLSX.",
-  "permissions": ["tabs"],
-  "host_permissions": ["https://www.instagram.com/*"],
+  "permissions": [
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://www.instagram.com/*",
+    "file:///*"
+  ],
   "action": {
     "default_popup": "popup/popup.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.instagram.com/p/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://www.instagram.com/p/*",
+        "https://www.instagram.com/*/p/*",
+        "file:///*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ]

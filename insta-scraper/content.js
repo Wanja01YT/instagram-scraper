@@ -68,6 +68,78 @@ async function scrapeInstagramComments(runId) {
     return (s ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  function getInstagramPathname(href) {
+    if (!href) return "";
+
+    try {
+      const url = new URL(href, location.href);
+      const host = (url.hostname || "").replace(/^www\./, "").toLowerCase();
+      if (host && host !== "instagram.com") return "";
+      return url.pathname || "";
+    } catch {
+      return String(href || "");
+    }
+  }
+
+  function handleFromProfileHref(href) {
+    const path = getInstagramPathname(href);
+    const parts = path.split("/").filter(Boolean);
+    if (parts.length !== 1) return "";
+
+    const handle = decodeURIComponent(parts[0]).replace(/^@/, "").trim();
+    if (!handle) return "";
+
+    // Exclude Instagram sections that can also look like /something/.
+    const reserved = new Set([
+      "about",
+      "accounts",
+      "api",
+      "direct",
+      "developer",
+      "explore",
+      "legal",
+      "p",
+      "privacy",
+      "reel",
+      "reels",
+      "stories",
+      "terms",
+      "tv",
+      "web",
+    ]);
+
+    if (reserved.has(handle.toLowerCase())) return "";
+    return handle;
+  }
+
+  function isProfileAnchor(a) {
+    return !!handleFromProfileHref(a?.getAttribute?.("href") || a?.href || "");
+  }
+
+  function profileAnchors(scope = document) {
+    return Array.from(scope.querySelectorAll('a[href]')).filter(isProfileAnchor);
+  }
+
+  function getAnchorHandle(a) {
+    return handleFromProfileHref(a?.getAttribute?.("href") || a?.href || "");
+  }
+
+  function cleanHandleText(text, fallback = "") {
+    const t = normalizeWs(text).replace(/^@/, "");
+    if (!t) return fallback;
+
+    // Header/profile links can include badge text in saved pages, e.g. "name Verified".
+    return t.replace(/\s+Verified$/i, "").trim() || fallback;
+  }
+
+  function handleFromPostUrl(urlish) {
+    const path = getInstagramPathname(urlish);
+    const parts = path.split("/").filter(Boolean);
+    // Saved pages may use /owner/p/shortcode/, while live pages are often /p/shortcode/.
+    if (parts.length >= 3 && parts[1] === "p") return handleFromProfileHref(`/${parts[0]}/`);
+    return "";
+  }
+
   function parseAbbrevNumber(raw) {
     const s = normalizeWs(raw).toLowerCase();
     if (!s) return 0;
@@ -109,29 +181,37 @@ async function scrapeInstagramComments(runId) {
   // -------------------------
 
   function extractPublisher() {
-    // Snippet A: <a ... href="/officialstandoff2de/" ...><span class="_ap3a ...">officialstandoff2de</span>
-    const spanA =
-      document.querySelector('article a.notranslate._a6hd[href^="/"][href$="/"] span._ap3a') ||
-      document.querySelector('a.notranslate._a6hd[href^="/"][href$="/"] span._ap3a');
+    let handle =
+      handleFromPostUrl(document.querySelector('meta[property="og:url"]')?.content || "") ||
+      handleFromPostUrl(document.querySelector('link[rel="canonical"]')?.href || "") ||
+      handleFromPostUrl(location.href || "");
 
-    let handle = "";
-
-    if (spanA) {
-      handle = normalizeWs(spanA.textContent);
-    } else {
-      const a =
-        document.querySelector('article a[href^="/"][href$="/"][role="link"]') ||
-        document.querySelector('a[href^="/"][href$="/"][role="link"]');
-      if (a) {
-        const href = a.getAttribute("href") || "";
-        const parts = href.split("/").filter(Boolean);
-        if (parts.length === 1) handle = parts[0];
-        const visible = normalizeWs(a.querySelector("span")?.innerText || a.innerText);
-        if (visible) handle = visible;
-      }
+    if (!handle) {
+      const title =
+        document.querySelector('meta[name="twitter:title"]')?.content ||
+        document.querySelector('meta[property="og:title"]')?.content ||
+        document.title ||
+        "";
+      const m = title.match(/@([A-Za-z0-9._]+)/);
+      if (m) handle = m[1];
     }
 
-    handle = handle.replace(/^@/, "");
+    if (!handle) {
+      const withPostTime = profileAnchors(document).find((a) => {
+        for (let el = a; el; el = el.parentElement) {
+          const time = el.querySelector?.('time[datetime]');
+          if (!time) continue;
+          const timeLink = time.closest?.('a[href*="/c/"]');
+          if (!timeLink) return true;
+        }
+        return false;
+      });
+
+      const firstProfile = withPostTime || profileAnchors(document)[0];
+      if (firstProfile) handle = getAnchorHandle(firstProfile);
+    }
+
+    handle = cleanHandleText(handle);
     const url = handle ? `https://www.instagram.com/${handle}/` : "N/A";
     const nickname = handle || "N/A";
 
@@ -148,19 +228,24 @@ async function scrapeInstagramComments(runId) {
   function findCaptionTimeNearPublisherHandle(handle) {
     if (!handle || handle === "N/A") return null;
 
-    const a =
-      document.querySelector(`a.notranslate._a6hd[href="/${handle}/"]`) ||
-      document.querySelector(`a.notranslate._a6hd[href="/${handle}/"][role="link"]`) ||
-      document.querySelector(`a[href="/${handle}/"]`) ||
-      null;
+    const anchors = profileAnchors(document).filter((a) => getAnchorHandle(a).toLowerCase() === handle.toLowerCase());
 
-    if (!a) return null;
+    // Prefer the caption/post timestamp, not the publisher replying in their own comments.
+    for (const a of anchors) {
+      let el = a;
+      for (let i = 0; i < 18 && el; i++, el = el.parentElement) {
+        const t = el.querySelector?.("time[datetime]") || null;
+        if (!t) continue;
+        if (!t.closest?.('a[href*="/c/"]')) return t;
+      }
+    }
 
-    let el = a;
-    for (let i = 0; i < 18 && el; i++) {
-      const t = el.querySelector?.("time[datetime]") || null;
-      if (t) return t;
-      el = el.parentElement;
+    for (const a of anchors) {
+      let el = a;
+      for (let i = 0; i < 18 && el; i++, el = el.parentElement) {
+        const t = el.querySelector?.("time[datetime]") || null;
+        if (t) return t;
+      }
     }
 
     return null;
@@ -331,25 +416,23 @@ async function scrapeInstagramComments(runId) {
   }
 
   function extractUsername(root) {
-    const anchors = Array.from(root.querySelectorAll('a[href^="/"][href$="/"]'));
+    const anchors = profileAnchors(root);
     for (const a of anchors) {
-      const href = a.getAttribute("href") || "";
-      const parts = href.split("/").filter(Boolean);
-      if (parts.length !== 1) continue;
+      const handle = getAnchorHandle(a);
+      if (!handle) continue;
 
-      const visible = normalizeWs(a.querySelector("span")?.innerText || a.innerText);
-      if (visible) return visible;
-      return parts[0] || "";
+      const visible = cleanHandleText(a.querySelector("span")?.innerText || a.innerText || a.textContent, handle);
+      return visible || handle;
     }
     return "";
   }
 
   function extractCommentText(root, username) {
-    const spans = Array.from(root.querySelectorAll('span[dir="auto"]'));
+    const nodes = Array.from(root.querySelectorAll('[dir="auto"]'));
 
-    const candidates = spans
+    const candidates = nodes
       .filter((sp) => {
-        const txt = normalizeWs(sp.innerText);
+        const txt = normalizeWs(sp.innerText || sp.textContent);
         if (!txt) return false;
 
         if (sp.closest("a")) return false;
@@ -357,14 +440,15 @@ async function scrapeInstagramComments(runId) {
 
         const low = txt.toLowerCase();
         if (low === "reply") return false;
-        if (/\blike\b/.test(low)) return false;
-        if (username && txt === username) return false;
+        if (low === "see translation") return false;
+        if (/^\d+(?:[.,]\d+)?[km]?\s+likes?$/i.test(txt)) return false;
+        if (username && cleanHandleText(txt) === cleanHandleText(username)) return false;
 
         return true;
       })
-      .sort((a, b) => normalizeWs(b.innerText).length - normalizeWs(a.innerText).length);
+      .sort((a, b) => normalizeWs(b.innerText || b.textContent).length - normalizeWs(a.innerText || a.textContent).length);
 
-    return normalizeWs(candidates[0]?.innerText || "");
+    return normalizeWs(candidates[0]?.innerText || candidates[0]?.textContent || "");
   }
 
   function extractCommentTime(root) {
@@ -397,19 +481,47 @@ async function scrapeInstagramComments(runId) {
     return m ? m[0] : "";
   }
 
+  function hasCommentLikeControl(el) {
+    const labels = [
+      ...Array.from(el.querySelectorAll('svg[aria-label]')).map((x) => x.getAttribute("aria-label")),
+      ...Array.from(el.querySelectorAll("svg title")).map((x) => x.textContent),
+    ]
+      .map((x) => normalizeWs(x).toLowerCase())
+      .filter(Boolean);
+
+    return labels.some((x) =>
+      [
+        "like",
+        "unlike",
+        "gefällt mir",
+        "gefällt mir nicht",
+        "me gusta",
+        "ya no me gusta",
+      ].includes(x)
+    );
+  }
+
   function getCommentRootFromTime(timeEl) {
+    let bestWithText = null;
     let el = timeEl;
+
     for (let i = 0; i < 25 && el; i++) {
       el = el.parentElement;
       if (!el) break;
 
-      const hasProfileLink = !!el.querySelector('a[href^="/"][href$="/"]');
-      const hasTime = !!el.querySelector("time[datetime]");
-      const hasLikeIcon = !!el.querySelector('svg[aria-label="Like"], svg[aria-label="Unlike"], svg title');
+      const hasProfileLink = profileAnchors(el).length > 0;
+      const hasCommentTime = !!el.querySelector('a[href*="/c/"] time[datetime]');
+      const hasLikeIcon = hasCommentLikeControl(el);
+      const username = hasProfileLink ? extractUsername(el) : "";
+      const hasText = !!(username && extractCommentText(el, username));
 
-      if (hasTime && hasProfileLink && hasLikeIcon) return el;
+      if (hasCommentTime && hasProfileLink && hasText) {
+        bestWithText = bestWithText || el;
+        if (hasLikeIcon) return el;
+      }
     }
-    return null;
+
+    return bestWithText;
   }
 
   function findCommentRoots(mount) {
@@ -628,8 +740,8 @@ async function scrapeInstagramComments(runId) {
     }
 
     if (scrollTarget) {
-      scrollTarget.scrollTop += CFG.SCROLL_STEP_PX;
-      scrollTarget.scrollTop = Math.max(scrollTarget.scrollTop, scrollTarget.scrollHeight);
+      const nextTop = scrollTarget.scrollTop + CFG.SCROLL_STEP_PX;
+      scrollTarget.scrollTop = Math.min(nextTop, Math.max(0, scrollTarget.scrollHeight - scrollTarget.clientHeight));
     } else {
       window.scrollBy(0, CFG.SCROLL_STEP_PX);
       window.scrollTo(0, document.documentElement.scrollHeight);
